@@ -1,0 +1,13 @@
+services:
+  dlc-worker:
+    profiles: [scaffold]
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      SPRING_MAIN_WEB_APPLICATION_TYPE: none
+    networks: [platform]
+
+networks:
+  platform:
+    external: true

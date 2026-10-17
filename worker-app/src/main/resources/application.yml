@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: dlc-worker
+  main:
+    web-application-type: none
