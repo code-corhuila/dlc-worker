@@ -54,3 +54,5 @@ jobs:
       - name: Verify project
         run: mvn -B verify
 
+      - name: Build Docker image
+        run: docker build -f deploy/Dockerfile -t dlc-worker:ci .
