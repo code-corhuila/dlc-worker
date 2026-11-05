@@ -1,25 +1,31 @@
 # dlc-worker
 
-> Asynchronous jobs and background processing
+> Transversal Notifications capability — asynchronous email delivery.
 
-Part of the **LMS Library** distributed system — team `lms-library`, Grupo 2.
-Governance and documentation live in [`library-docs`](https://github.com/code-corhuila/library-docs).
+Part of the **Di Lucca Dental Care & Technology** distributed system. Under [ADR-005](https://github.com/code-corhuila/dlc-docs/blob/main/05-architecture/decisions/ADR-005-hybrid-integration-and-notifications.md), Appointments and Billing decide **why and when** to notify; this worker decides **how to deliver** through an email-provider adapter. It is a supporting component, not a business service: it owns no appointment, clinical or financial state.
+
+Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-docs`](https://github.com/code-corhuila/dlc-docs):
+
+| Topic | Location in dlc-docs |
+|---|---|
+| Decision | `05-architecture/decisions/ADR-005-hybrid-integration-and-notifications.md` |
+| Consumed event | `07-api/contracts/events/` (`AppointmentReminderRequested`) |
+| Private owner contracts (`/internal/v1`) | `07-api/contracts/openapi/internal-coordination.yaml` |
+| Repository boundary | `09-microservices/transversal-repositories.md` |
+| Store (`notifications` schema) | `06-data/models.md` |
+
+## Status
+
+Under construction. Scope of the first delivery: informational appointment reminders (HU-APT-002, issue #1). Billing invoice and payment email (issues #2 and #3) are not started.
 
 ## Branching
 
-Three permanent branches. **None of them accepts a direct commit** — you enter through a child
-branch and leave through a Pull Request.
+Permanent branches do not accept direct commits.
 
+```text
+develop  <--PR--  feat/... fix/... test/... chore/...
+qa       <--PR--  promotion/qa-worker-N
+main     <--PR--  release/... hotfix/...
 ```
-develop  <--PR--  feat/... fix/... chore/...
-qa       <--PR--  qa/...
-main     <--PR--  release/...  hotfix/...
-```
 
-Promotion happens **by re-application** (`git cherry-pick -x`), never by merging one permanent
-branch into another: `merge develop -> qa` and `merge qa -> main` do not exist in this model.
-
-`main` requires **1 approval from `ariel5253`**. On `develop` and `qa` the team sets its own review
-rule.
-
-Full policy: `00-governance/branching-policy.md` in `library-docs`.
+Promotion re-applies `develop` commits with `git cherry-pick -x`; permanent branches are never merged into each other. Changes to `main` require the teacher's approval. See `00-governance/branching-policy.md` in dlc-docs.
