@@ -45,6 +45,12 @@
             <artifactId>postgresql</artifactId>
         </dependency>
 
+        <!-- Consumer of AppointmentReminderRequested; plain spring-rabbit, no Boot auto-configuration. -->
+        <dependency>
+            <groupId>org.springframework.amqp</groupId>
+            <artifactId>spring-rabbit</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
