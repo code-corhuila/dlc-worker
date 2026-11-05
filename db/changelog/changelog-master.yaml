@@ -1,0 +1,46 @@
+# notifications schema of dlc-worker (dlc-docs 06-data/models.md, "Notifications schema baseline").
+# Runs as notifications_migrator; notifications_runtime receives DML only.
+databaseChangeLog:
+  - changeSet:
+      id: notifications-001-create-schema
+      author: LuisBonilla2260
+      labels: "HU-APT-002,ddl,schema"
+      runInTransaction: true
+      preConditions:
+        - onFail: HALT
+        - dbms:
+            type: postgresql
+        - sqlCheck:
+            expectedResult: "0"
+            sql: "SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname='notifications'"
+      changes:
+        - sqlFile: {path: sql/001_create_schema.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sqlFile: {path: rollback/001_create_schema.rollback.sql, relativeToChangelogFile: true}
+  - changeSet:
+      id: notifications-002-create-inbox-events
+      author: LuisBonilla2260
+      labels: "HU-APT-002,ddl,tables"
+      runInTransaction: true
+      changes:
+        - sqlFile: {path: sql/002_create_inbox_events.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sql: {sql: "DROP TABLE notifications.inbox_events"}
+  - changeSet:
+      id: notifications-003-create-deliveries
+      author: LuisBonilla2260
+      labels: "HU-APT-002,ddl,tables"
+      runInTransaction: true
+      changes:
+        - sqlFile: {path: sql/003_create_deliveries.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sql: {sql: "DROP TABLE notifications.deliveries"}
+  - changeSet:
+      id: notifications-004-grant-runtime
+      author: LuisBonilla2260
+      labels: "HU-APT-002,dcl,grants"
+      runInTransaction: true
+      changes:
+        - sqlFile: {path: sql/004_grant_runtime.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sqlFile: {path: rollback/004_grant_runtime.rollback.sql, relativeToChangelogFile: true}
