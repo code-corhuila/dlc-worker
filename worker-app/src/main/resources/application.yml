@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: dlc-worker
+  main:
+    web-application-type: none
+  lifecycle:
+    # Norma 5.3.10: graceful shutdown limit.
+    timeout-per-shutdown-phase: 20s
+
+logging:
+  structured:
+    format:
+      console: logstash
