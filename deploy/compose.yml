@@ -1,0 +1,38 @@
+# Worker only: PostgreSQL comes from dlc-infra-postgres (schema notifications applied by db/deploy/compose.migrate.yml)
+# and RabbitMQ from the platform (or the "broker" profile of dlc-appointments-api while no shared broker exists).
+# The "mailpit" profile starts a local fake SMTP server for stages without an email provider.
+name: dlc-worker
+
+services:
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: dlc-worker:local
+    restart: unless-stopped
+    stop_grace_period: 30s
+    env_file: ../.env
+    volumes:
+      # Service tokens and the optional SMTP password referenced by the *_FILE variables of .env.
+      - type: bind
+        source: ${WORKER_SECRETS_DIR:?set WORKER_SECRETS_DIR}
+        target: /run/secrets
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [platform]
+
+  mailpit:
+    profiles: [mailpit]
+    image: axllent/mailpit:v1.27
+    container_name: dlc-mailpit
+    restart: unless-stopped
+    # Web UI on the host loopback only, to inspect the captured reminders.
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    networks: [platform]
+
+networks:
+  platform:
+    name: ${PLATFORM_NETWORK:-platform}
+    external: true
