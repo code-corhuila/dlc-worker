@@ -7,6 +7,37 @@ spring:
     # Norma 5.3.10: graceful shutdown limit.
     timeout-per-shutdown-phase: 20s
 
+worker:
+  enabled: ${WORKER_ENABLED:true}
+  database:
+    # Own schema notifications only, as notifications_runtime; the worker never runs migrations.
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+  rabbitmq:
+    uri: ${WORKER_RABBITMQ_URI:}
+    exchange: ${APPOINTMENTS_EVENTS_EXCHANGE:appointments.events}
+    queue-prefix: ${WORKER_QUEUE_PREFIX:worker}
+    attempts: ${WORKER_CONSUMER_ATTEMPTS:5}
+    backoff: ${WORKER_CONSUMER_BACKOFF:PT1S}
+  appointments:
+    internal-url: ${APPOINTMENTS_INTERNAL_URL:}
+    service-token-file: ${APPOINTMENTS_SERVICE_TOKEN_FILE:}
+  patients:
+    internal-url: ${PATIENTS_INTERNAL_URL:}
+    service-token-file: ${PATIENTS_SERVICE_TOKEN_FILE:}
+  owner-timeout: ${WORKER_OWNER_TIMEOUT:PT3S}
+  smtp:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password-file: ${SMTP_PASSWORD_FILE:}
+    start-tls: ${SMTP_STARTTLS:true}
+    from: ${SMTP_FROM:}
+    timeout: ${SMTP_TIMEOUT:PT10S}
+  # ADR-005: at most three email attempts; the delay doubles after each failure.
+  email-backoff: ${WORKER_EMAIL_BACKOFF:PT2S}
+
 logging:
   structured:
     format:
