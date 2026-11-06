@@ -1,0 +1,90 @@
+# Disposable end-to-end stage of HU-APT-002, started and removed by e2e/run.sh. Never a deployment:
+# every password, key and token is generated per run outside the repository (E2E_SECRETS_DIR).
+name: dlc-worker-e2e
+
+services:
+  postgres:
+    image: postgres:16.13
+    environment:
+      POSTGRES_DB: di_lucca
+      POSTGRES_PASSWORD: ${E2E_ADMIN_PASSWORD:?run e2e/run.sh}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "di_lucca"]
+      interval: 2s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: e2e
+      RABBITMQ_DEFAULT_PASS: ${E2E_BROKER_PASSWORD:?run e2e/run.sh}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+
+  # Patients double: GET /internal/v1/patients/{id}/billing-contact as internal-coordination.yaml defines it.
+  patients:
+    image: wiremock/wiremock:3.9.1
+    command: ["--port", "8080", "--disable-banner"]
+    volumes:
+      - ./patients-double/mappings:/home/wiremock/mappings:ro
+
+  appointments-api:
+    image: ${APPOINTMENTS_IMAGE:-dlc-appointments-api:e2e}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/di_lucca
+      DB_USERNAME: appointments_runtime
+      DB_PASSWORD: ${E2E_APPOINTMENTS_PASSWORD:?run e2e/run.sh}
+      JWT_PUBLIC_KEY_FILE: /run/secrets/staff-public.pem
+      JWT_ISSUER: dlc-e2e-auth
+      JWT_AUDIENCE: dlc-e2e-staff
+      INTERNAL_SERVICE_JWT_PUBLIC_KEY_FILE: /run/secrets/service-public.pem
+      INTERNAL_SERVICE_JWT_ISSUER: dlc-e2e-services
+      INTERNAL_SERVICE_JWT_AUDIENCE: appointments-service
+      APPOINTMENTS_RABBITMQ_URI: amqp://e2e:${E2E_BROKER_PASSWORD}@rabbitmq:5672
+      APPOINTMENTS_REMINDERS_INTERVAL: PT5S
+      AUTH_INTERNAL_URL: http://patients:8080
+      AUTH_SERVICE_TOKEN_FILE: /run/secrets/unused-token
+      PATIENTS_INTERNAL_URL: http://patients:8080
+      PATIENTS_SERVICE_TOKEN_FILE: /run/secrets/unused-token
+    volumes:
+      - ${E2E_SECRETS_DIR:?run e2e/run.sh}:/run/secrets:ro
+    healthcheck:
+      # The JRE image has no curl; bash provides /dev/tcp.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 5s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  worker:
+    image: ${WORKER_IMAGE:-dlc-worker:e2e}
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/di_lucca
+      DB_USERNAME: notifications_runtime
+      DB_PASSWORD: ${E2E_NOTIFICATIONS_PASSWORD:?run e2e/run.sh}
+      WORKER_RABBITMQ_URI: amqp://e2e:${E2E_BROKER_PASSWORD}@rabbitmq:5672
+      APPOINTMENTS_INTERNAL_URL: http://appointments-api:8080
+      APPOINTMENTS_SERVICE_TOKEN_FILE: /run/secrets/worker-to-appointments
+      PATIENTS_INTERNAL_URL: http://patients:8080
+      PATIENTS_SERVICE_TOKEN_FILE: /run/secrets/worker-to-patients
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      SMTP_FROM: recordatorios@dilucca.test
+      WORKER_EMAIL_BACKOFF: PT1S
+    volumes:
+      - ${E2E_SECRETS_DIR}:/run/secrets:ro
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      appointments-api: { condition: service_healthy }
+
+networks:
+  default:
+    name: dlc-worker-e2e
