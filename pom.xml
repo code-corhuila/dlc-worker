@@ -101,7 +101,7 @@
     </build>
 
     <profiles>
-        <!-- mvn -B verify -Pcoverage with TEST_DATABASE_URL and TEST_RABBITMQ_URL set: fails when a
+        <!-- mvn -B verify -Pcoverage with TEST_DATABASE_URL, TEST_RABBITMQ_URL and DLC_DOCS_DIR set: fails when a
              module drops below its baseline. Off by default, because builds without that infrastructure skip the
              integration tests. -->
         <profile>

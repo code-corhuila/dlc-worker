@@ -18,7 +18,7 @@ Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-do
 
 | Scope | State |
 |---|---|
-| Informational appointment reminders (HU-APT-002, issue #1) | Implemented and run end to end against Appointments |
+| Informational appointment reminders (HU-APT-002, issue #1) | Implemented; reproducible end-to-end test against Appointments `qa` (`e2e/run.sh`) |
 | Patients `GET /internal/v1/patients/{id}/billing-contact` | **Not exposed by Patients yet.** The client follows the contract and is tested against a double; set `PATIENTS_INTERNAL_URL` when Patients delivers it |
 | Billing invoice and payment email (issues #2 and #3) | Not started |
 | Service credential issuer | Platform gap: no component issues service JWTs yet. The worker reads tokens provisioned as files |
@@ -88,6 +88,41 @@ mvn -B verify
 ```
 
 Database and broker tests run only when `TEST_DATABASE_URL` (administrative JDBC URL; the test creates and drops its own database) and `TEST_RABBITMQ_URL` are set; otherwise they are skipped.
+
+Coverage is measured by JaCoCo per module (`target/site/jacoco`) and in aggregate (`worker-app/target/site/jacoco-aggregate`). With every integration variable set (`TEST_DATABASE_URL`, `TEST_RABBITMQ_URL`, `DLC_DOCS_DIR`), `mvn -B verify -Pcoverage` fails when a module drops below its baseline, measured on 2026-11-05:
+
+| Module | Line | Branch |
+|---|---|---|
+| `worker-core` | 0.98 | 0.85 |
+| `worker-adapters` | 0.94 | 0.73 |
+| `worker-app` | 0.77 | 0.91 |
+
+With `DLC_DOCS_DIR` set to a `dlc-docs` checkout, every call the worker makes to the Appointments and Patients doubles, and every successful reply of those doubles, is validated against `07-api/contracts/openapi/internal-coordination.yaml`. The contract is read in place and never copied into this repository; a violation fails the test that produced it. Without the variable the check is skipped.
+
+## End-to-end test (HU-APT-002)
+
+`e2e/run.sh` builds a disposable stage on the Docker network `dlc-worker-e2e` (`e2e/compose.yml`):
+
+- PostgreSQL with the `appointments` schema migrated from a `dlc-appointments-db` checkout and the `notifications` schema migrated from `db/`.
+- RabbitMQ and Mailpit.
+- `dlc-appointments-api` built from `APPOINTMENTS_REF` (default `origin/qa`) of its checkout.
+- A WireMock double of Patients `billing-contact` that follows `internal-coordination.yaml`, until Patients exposes that route.
+- The worker image.
+
+The script generates every password, RSA key and service token for each run in a temporary folder and removes them at the end. It signs the RS256 service tokens itself because no IAM component issues them yet. Then it runs `ReminderEndToEndTest` and checks that the worker logs hold no recipient address or name. Requirements: Docker, `git`, `openssl`.
+
+```bash
+APPOINTMENTS_API_DIR=../dlc-appointments-api APPOINTMENTS_DB_DIR=../dlc-appointments-db e2e/run.sh
+```
+
+The test checks these cases:
+
+- An appointment due in 24 hours makes Appointments publish `AppointmentReminderRequested`. The worker reads `details`, sends one email (visible in Mailpit, date and time in `America/Bogota`, no links or clinical data) and reports `SENT`. The appointment ends with `reminder_status=SENT`.
+- The same event published again sends nothing.
+- A request for an appointment cancelled after it was published is discarded without email.
+- A message outside the event schema goes to `worker.appointment-reminder-requested.dlq`.
+
+`WORKER_IMAGE` runs an existing image instead of building this checkout, and `KEEP_STAGE=1` leaves the stage running. `ReminderEndToEndTest` is skipped unless `E2E_DATABASE_URL`, `E2E_RABBITMQ_URL` and `E2E_MAILPIT_URL` are set, which only the script does.
 
 ## Run with Docker Compose
 
