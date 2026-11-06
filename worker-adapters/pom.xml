@@ -18,8 +18,8 @@
     <name>worker-adapters</name>
 
     <properties>
-        <coverage.line.minimum>0.00</coverage.line.minimum>
-        <coverage.branch.minimum>0.00</coverage.branch.minimum>
+        <coverage.line.minimum>0.94</coverage.line.minimum>
+        <coverage.branch.minimum>0.73</coverage.branch.minimum>
     </properties>
 
     <dependencies>
