@@ -13,6 +13,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * An owner API double on a local port. Like the owners, it checks the bearer service token on every call:
@@ -21,13 +22,25 @@ import java.util.concurrent.ConcurrentHashMap;
 final class FakeOwner implements AutoCloseable {
     record Call(String method, String path, String authorization, String correlationId, String body) { }
 
-    record Reply(int status, String body) { }
+    /** A canned reply; {@code contract} false marks a deliberately malformed one, never checked against the contract. */
+    record Reply(int status, String body, boolean contract) {
+        Reply(int status, String body) {
+            this(status, body, true);
+        }
+
+        static Reply offContract(int status, String body) {
+            return new Reply(status, body, false);
+        }
+    }
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    // Loads the contract before any server starts, so its parsing never counts against a client timeout.
+    private static final boolean CONTRACT_CHECKED = OwnerContract.ENABLED;
     private final HttpServer server;
     final List<Call> calls = new ArrayList<>();
     final Map<String, Reply> replies = new ConcurrentHashMap<>();
     final Map<String, String> requiredScopes = new ConcurrentHashMap<>();
+    private final List<String> violations = new CopyOnWriteArrayList<>();
     private final String audience;
 
     FakeOwner(String audience) throws IOException {
@@ -37,10 +50,13 @@ final class FakeOwner implements AutoCloseable {
             String path = exchange.getRequestURI().getPath();
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            calls.add(new Call(exchange.getRequestMethod(), path, authorization,
-                    exchange.getRequestHeaders().getFirst("X-Correlation-Id"), body));
+            Call call = new Call(exchange.getRequestMethod(), path, authorization,
+                    exchange.getRequestHeaders().getFirst("X-Correlation-Id"), body);
+            calls.add(call);
             Reply reply = authorized(path, authorization) ? replies.getOrDefault(path, new Reply(500, ""))
                     : new Reply(403, "{\"code\":\"FORBIDDEN\"}");
+            violations.addAll(OwnerContract.violations(call, reply,
+                    exchange.getRequestHeaders().getFirst("Content-Type")));
             byte[] bytes = reply.body().getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(reply.status(), bytes.length == 0 ? -1 : bytes.length);
@@ -81,8 +97,20 @@ final class FakeOwner implements AutoCloseable {
         return Files.writeString(dir.resolve(name), token + "\n");
     }
 
+    /** Stops the double and fails the test when a call or reply broke the contract (DLC_DOCS_DIR set). */
     @Override
     public void close() {
+        server.stop(0);
+        if (!violations.isEmpty()) {
+            List<String> found = List.copyOf(violations);
+            violations.clear();
+            throw new AssertionError("Owner contract violations: " + found);
+        }
+    }
+
+    /** Stops the double without checking the contract. */
+    void discard() {
+        violations.clear();
         server.stop(0);
     }
 }
