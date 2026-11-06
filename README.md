@@ -89,6 +89,14 @@ mvn -B verify
 
 Database and broker tests run only when `TEST_DATABASE_URL` (administrative JDBC URL; the test creates and drops its own database) and `TEST_RABBITMQ_URL` are set; otherwise they are skipped.
 
+Coverage is measured by JaCoCo per module (`target/site/jacoco`) and in aggregate (`worker-app/target/site/jacoco-aggregate`). With every integration variable set (`TEST_DATABASE_URL`, `TEST_RABBITMQ_URL`, `DLC_DOCS_DIR`), `mvn -B verify -Pcoverage` fails when a module drops below its baseline, measured on 2026-11-05:
+
+| Module | Line | Branch |
+|---|---|---|
+| `worker-core` | 0.98 | 0.85 |
+| `worker-adapters` | 0.94 | 0.73 |
+| `worker-app` | 0.77 | 0.91 |
+
 With `DLC_DOCS_DIR` set to a `dlc-docs` checkout, every call the worker makes to the Appointments and Patients doubles, and every successful reply of those doubles, is validated against `07-api/contracts/openapi/internal-coordination.yaml`. The contract is read in place and never copied into this repository; a violation fails the test that produced it. Without the variable the check is skipped.
 
 ## Run with Docker Compose
