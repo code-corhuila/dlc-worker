@@ -6,3 +6,4 @@ target/
 db/
 deploy/
 *.md
+e2e/
