@@ -79,7 +79,7 @@ class HttpAppointmentNotificationsTest {
         owner.replies.put(BASE + "/details", new FakeOwner.Reply(503, ""));
         assertThatThrownBy(() -> client.details(APPOINTMENT)).isInstanceOf(OwnerUnavailableException.class);
 
-        owner.replies.put(BASE + "/details", new FakeOwner.Reply(200, "{\"appointmentId\":\"x\"}"));
+        owner.replies.put(BASE + "/details", FakeOwner.Reply.offContract(200, "{\"appointmentId\":\"x\"}"));
         assertThatThrownBy(() -> client.details(APPOINTMENT)).isInstanceOf(OwnerUnavailableException.class);
 
         Files.writeString(tokenFile, FakeOwner.token(AUDIENCE, "appointments:other"));

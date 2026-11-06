@@ -83,6 +83,14 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Checks the owner doubles against internal-coordination.yaml of DLC_DOCS_DIR (same validator as Appointments). -->
+        <dependency>
+            <groupId>com.atlassian.oai</groupId>
+            <artifactId>swagger-request-validator-core</artifactId>
+            <version>2.44.1</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
 </project>

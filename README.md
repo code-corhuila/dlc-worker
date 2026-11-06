@@ -89,6 +89,8 @@ mvn -B verify
 
 Database and broker tests run only when `TEST_DATABASE_URL` (administrative JDBC URL; the test creates and drops its own database) and `TEST_RABBITMQ_URL` are set; otherwise they are skipped.
 
+With `DLC_DOCS_DIR` set to a `dlc-docs` checkout, every call the worker makes to the Appointments and Patients doubles, and every successful reply of those doubles, is validated against `07-api/contracts/openapi/internal-coordination.yaml`. The contract is read in place and never copied into this repository; a violation fails the test that produced it. Without the variable the check is skipped.
+
 ## Run with Docker Compose
 
 Requirements: the external network `platform`, PostgreSQL from `dlc-infra-postgres` with the `notifications` schema migrated, RabbitMQ on the same network (the `broker` profile of `dlc-appointments-api` while there is no shared broker) and a `.env` file at the repository root:

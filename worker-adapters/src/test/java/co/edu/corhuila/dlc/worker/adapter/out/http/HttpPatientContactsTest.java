@@ -65,7 +65,7 @@ class HttpPatientContactsTest {
         assertThatThrownBy(() -> client.contact(PATIENT)).isInstanceOf(OwnerUnavailableException.class)
                 .hasMessageNotContaining("ana@example.com");
 
-        owner.replies.put(PATH, new FakeOwner.Reply(200, "{\"patientId\":\"" + PATIENT + "\"}"));
+        owner.replies.put(PATH, FakeOwner.Reply.offContract(200, "{\"patientId\":\"" + PATIENT + "\"}"));
         assertThatThrownBy(() -> client.contact(PATIENT)).isInstanceOf(OwnerUnavailableException.class);
 
         owner.replies.put(PATH, new FakeOwner.Reply(503, ""));
