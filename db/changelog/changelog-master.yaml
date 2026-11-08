@@ -44,3 +44,12 @@ databaseChangeLog:
         - sqlFile: {path: sql/004_grant_runtime.sql, relativeToChangelogFile: true, splitStatements: false}
       rollback:
         - sqlFile: {path: rollback/004_grant_runtime.rollback.sql, relativeToChangelogFile: true}
+  - changeSet:
+      id: notifications-005-create-financial-deliveries
+      author: LuisBonilla2260
+      labels: "HU-BIL-002,HU-BIL-003,ddl,dcl,tables"
+      runInTransaction: true
+      changes:
+        - sqlFile: {path: sql/005_create_financial_deliveries.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sqlFile: {path: rollback/005_create_financial_deliveries.rollback.sql, relativeToChangelogFile: true}

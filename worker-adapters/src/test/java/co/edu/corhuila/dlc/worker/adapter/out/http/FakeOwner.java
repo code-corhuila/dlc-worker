@@ -20,16 +20,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * subject {@code dlc-worker}, its audience and the operation's scope (the signature is the owner's concern).
  */
 final class FakeOwner implements AutoCloseable {
-    record Call(String method, String path, String authorization, String correlationId, String body) { }
+    record Call(String method, String path, String query, String authorization, String correlationId, String body) { }
 
     /** A canned reply; {@code contract} false marks a deliberately malformed one, never checked against the contract. */
-    record Reply(int status, String body, boolean contract) {
+    record Reply(int status, String body, boolean contract, String contentType) {
         Reply(int status, String body) {
-            this(status, body, true);
+            this(status, body, true, "application/json");
         }
 
         static Reply offContract(int status, String body) {
-            return new Reply(status, body, false);
+            return new Reply(status, body, false, "application/json");
+        }
+
+        /** A 200 PDF reply; the body is ASCII so it survives the string round trip. */
+        static Reply pdf(String body) {
+            return new Reply(200, body, true, "application/pdf");
         }
     }
 
@@ -50,7 +55,7 @@ final class FakeOwner implements AutoCloseable {
             String path = exchange.getRequestURI().getPath();
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             String authorization = exchange.getRequestHeaders().getFirst("Authorization");
-            Call call = new Call(exchange.getRequestMethod(), path, authorization,
+            Call call = new Call(exchange.getRequestMethod(), path, exchange.getRequestURI().getRawQuery(), authorization,
                     exchange.getRequestHeaders().getFirst("X-Correlation-Id"), body);
             calls.add(call);
             Reply reply = authorized(path, authorization) ? replies.getOrDefault(path, new Reply(500, ""))
@@ -58,7 +63,7 @@ final class FakeOwner implements AutoCloseable {
             violations.addAll(OwnerContract.violations(call, reply,
                     exchange.getRequestHeaders().getFirst("Content-Type")));
             byte[] bytes = reply.body().getBytes(StandardCharsets.UTF_8);
-            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.getResponseHeaders().set("Content-Type", reply.contentType());
             exchange.sendResponseHeaders(reply.status(), bytes.length == 0 ? -1 : bytes.length);
             if (bytes.length > 0) exchange.getResponseBody().write(bytes);
             exchange.close();
