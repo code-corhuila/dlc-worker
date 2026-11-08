@@ -11,7 +11,12 @@ import jakarta.mail.Session;
 import jakarta.mail.Transport;
 import jakarta.mail.internet.AddressException;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.activation.DataHandler;
+import jakarta.mail.Part;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.util.ByteArrayDataSource;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Properties;
@@ -20,7 +25,8 @@ import org.eclipse.angus.mail.smtp.SMTPAddressFailedException;
 import org.eclipse.angus.mail.smtp.SMTPSendFailedException;
 
 /**
- * Email-provider adapter over SMTP. Sends plain UTF-8 text with Message-ID {@code <deliveryId@dlc-worker>}, which is
+ * Email-provider adapter over SMTP. Sends plain UTF-8 text (multipart/mixed with the attachment when the message has
+ * one) with Message-ID {@code <deliveryId@dlc-worker>}, which is
  * returned as the provider reference. SMTP 5xx replies and malformed addresses are permanent; connection failures
  * and 4xx replies are transient. Failures carry only a code, never the address or the content.
  */
@@ -76,7 +82,18 @@ public final class SmtpEmailSender implements EmailSender {
             mail.setFrom(from);
             mail.setRecipient(Message.RecipientType.TO, new InternetAddress(message.to(), true));
             mail.setSubject(message.subject(), "UTF-8");
-            mail.setText(message.body(), "UTF-8", "plain");
+            if (message.attachment() == null) {
+                mail.setText(message.body(), "UTF-8", "plain");
+            } else {
+                MimeBodyPart text = new MimeBodyPart();
+                text.setText(message.body(), "UTF-8", "plain");
+                MimeBodyPart file = new MimeBodyPart();
+                file.setDataHandler(new DataHandler(new ByteArrayDataSource(message.attachment().content(),
+                        message.attachment().contentType())));
+                file.setFileName(message.attachment().fileName());
+                file.setDisposition(Part.ATTACHMENT);
+                mail.setContent(new MimeMultipart(text, file));
+            }
             mail.saveChanges();
             Transport.send(mail);
             return mail.getMessageID();

@@ -26,12 +26,18 @@ final class OwnerContract {
         if (!ENABLED) return List.of();
         SimpleRequest.Builder request = new SimpleRequest.Builder(Request.Method.valueOf(call.method()), call.path());
         if (call.authorization() != null) request.withAuthorization(call.authorization());
+        if (call.query() != null) {
+            for (String pair : call.query().split("&")) {
+                String[] parts = pair.split("=", 2);
+                request.withQueryParam(parts[0], parts.length > 1 ? parts[1] : "");
+            }
+        }
         if (call.correlationId() != null) request.withHeader("X-Correlation-Id", call.correlationId());
         if (!call.body().isEmpty()) request.withContentType(requestContentType).withBody(call.body());
         ValidationReport report = VALIDATOR.validateRequest(request.build());
         if (reply.contract() && reply.status() >= 200 && reply.status() < 300) {
             SimpleResponse.Builder response = SimpleResponse.Builder.status(reply.status());
-            if (!reply.body().isEmpty()) response.withContentType("application/json").withBody(reply.body());
+            if (!reply.body().isEmpty()) response.withContentType(reply.contentType()).withBody(reply.body());
             report = report.merge(VALIDATOR.validateResponse(call.path(), Request.Method.valueOf(call.method()),
                     response.build()));
         }

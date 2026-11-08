@@ -40,17 +40,22 @@ final class OwnerClient {
     }
 
     HttpResponse<String> get(String path) {
-        return send(request(path).GET());
+        return send(request(path).header("Accept", "application/json").GET(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    /** A binary representation such as a PDF; same transport rules as the JSON calls. */
+    HttpResponse<byte[]> getBytes(String path, String accept) {
+        return send(request(path).header("Accept", accept).GET(), HttpResponse.BodyHandlers.ofByteArray());
     }
 
     HttpResponse<String> post(String path, String json) {
-        return send(request(path).header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json)));
+        return send(request(path).header("Accept", "application/json").header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json)), HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpRequest.Builder request(String path) {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path)).timeout(timeout)
-                .header("Authorization", "Bearer " + token.current()).header("Accept", "application/json");
+                .header("Authorization", "Bearer " + token.current());
         String correlation = MDC.get("correlationId");
         if (correlation != null && UUID_TEXT.matcher(correlation).matches()) {
             builder.header("X-Correlation-Id", correlation);
@@ -58,10 +63,10 @@ final class OwnerClient {
         return builder;
     }
 
-    private HttpResponse<String> send(HttpRequest.Builder request) {
-        HttpResponse<String> response;
+    private <T> HttpResponse<T> send(HttpRequest.Builder request, HttpResponse.BodyHandler<T> handler) {
+        HttpResponse<T> response;
         try {
-            response = http.send(request.build(), HttpResponse.BodyHandlers.ofString());
+            response = http.send(request.build(), handler);
         } catch (IOException unreachable) {
             throw unavailable("UNAVAILABLE");
         } catch (InterruptedException interrupted) {
@@ -109,7 +114,7 @@ final class OwnerClient {
         }
     }
 
-    RuntimeException unexpected(HttpResponse<String> response) {
+    RuntimeException unexpected(HttpResponse<?> response) {
         return unavailable(response.statusCode() >= 500 ? "UNAVAILABLE" : "CONTRACT_MISMATCH");
     }
 }

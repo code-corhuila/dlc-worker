@@ -50,6 +50,31 @@ class SmtpEmailSenderTest {
     }
 
     @Test
+    void attachesThePdfNextToThePlainTextBody() throws Exception {
+        byte[] pdf = "%PDF-1.4 factura".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        EmailMessage invoice = new EmailMessage(DELIVERY, "ana@example.com", "Factura FAC-7 de Di Lucca",
+                "Hola, Ana:\n\nLe compartimos su factura.\n",
+                new co.edu.corhuila.dlc.worker.application.model.Attachment("factura-FAC-7.pdf", "application/pdf",
+                        pdf));
+
+        sender(SMTP.getSmtp().getPort()).send(invoice);
+
+        MimeMessage mail = SMTP.getReceivedMessages()[0];
+        assertThat(mail.getContentType()).startsWith("multipart/mixed");
+        var parts = (jakarta.mail.internet.MimeMultipart) mail.getContent();
+        assertThat(parts.getCount()).isEqualTo(2);
+        var text = (jakarta.mail.internet.MimeBodyPart) parts.getBodyPart(0);
+        assertThat(text.getContentType()).startsWith("text/plain").containsIgnoringCase("UTF-8");
+        assertThat(((String) text.getContent()).replace("\r\n", "\n")).contains("Le compartimos su factura.");
+        var file = (jakarta.mail.internet.MimeBodyPart) parts.getBodyPart(1);
+        assertThat(file.getContentType()).startsWith("application/pdf");
+        assertThat(file.getFileName()).isEqualTo("factura-FAC-7.pdf");
+        assertThat(file.getDisposition()).isEqualTo("attachment");
+        assertThat(file.getInputStream().readAllBytes()).isEqualTo(pdf);
+        assertThat(mail.getMessageID()).isEqualTo("<" + DELIVERY + "@dlc-worker>");
+    }
+
+    @Test
     void anUnreachableProviderIsTransient() {
         assertThatThrownBy(() -> sender(1).send(MESSAGE)).isInstanceOfSatisfying(EmailDeliveryException.class,
                 failure -> {
