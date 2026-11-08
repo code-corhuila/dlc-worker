@@ -26,6 +26,12 @@ worker:
   patients:
     internal-url: ${PATIENTS_INTERNAL_URL:}
     service-token-file: ${PATIENTS_SERVICE_TOKEN_FILE:}
+  billing:
+    # HU-BIL-002/003 invoice and payment emails; false runs the reminder pipeline only.
+    enabled: ${WORKER_BILLING_ENABLED:true}
+    internal-url: ${BILLING_INTERNAL_URL:}
+    service-token-file: ${BILLING_SERVICE_TOKEN_FILE:}
+    exchange: ${BILLING_EVENTS_EXCHANGE:billing.events}
   owner-timeout: ${WORKER_OWNER_TIMEOUT:PT3S}
   smtp:
     host: ${SMTP_HOST:}

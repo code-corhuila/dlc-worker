@@ -1,5 +1,11 @@
 package co.edu.corhuila.dlc.worker.app;
 
+import co.edu.corhuila.dlc.worker.adapter.in.messaging.FinancialEventReader;
+import co.edu.corhuila.dlc.worker.adapter.in.messaging.RabbitFinancialConsumer;
+import co.edu.corhuila.dlc.worker.adapter.out.http.HttpBillingDeliveries;
+import co.edu.corhuila.dlc.worker.adapter.out.persistence.JdbcFinancialDeliveryStore;
+import co.edu.corhuila.dlc.worker.application.usecase.DeliverFinancialEmail;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import static co.edu.corhuila.dlc.worker.app.WorkerProperties.required;
 
 import co.edu.corhuila.dlc.worker.adapter.in.messaging.RabbitReminderConsumer;
@@ -26,7 +32,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-/** Wires the reminder pipeline: RabbitMQ consumer, use case, owner clients, SMTP adapter and notifications store. */
+/**
+ * Wires the reminder pipeline and, unless worker.billing.enabled is false, the invoice and payment email pipeline:
+ * RabbitMQ consumers, use cases, owner clients, SMTP adapter and notifications store.
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(WorkerProperties.class)
 @ConditionalOnProperty(name = "worker.enabled", havingValue = "true", matchIfMissing = true)
@@ -58,6 +67,34 @@ public class WorkerConfiguration {
         return new DeliverReminder(appointments, patients, new SmtpEmailSender(smtp(properties.smtp())),
                 new JdbcDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
                 properties.emailBackoff(), Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "worker.billing.enabled", havingValue = "true", matchIfMissing = true)
+    DeliverFinancialEmail deliverFinancialEmail(WorkerProperties properties, HikariDataSource workerDataSource) {
+        Duration timeout = properties.ownerTimeout();
+        var billing = new HttpBillingDeliveries(
+                required(properties.billing().internalUrl(), "worker.billing.internal-url"),
+                token(properties.billing().serviceTokenFile(), "worker.billing.service-token-file"), timeout);
+        var patients = new HttpPatientContacts(
+                required(properties.patients().internalUrl(), "worker.patients.internal-url"),
+                token(properties.patients().serviceTokenFile(), "worker.patients.service-token-file"), timeout);
+        return new DeliverFinancialEmail(billing, patients, new SmtpEmailSender(smtp(properties.smtp())),
+                new JdbcFinancialDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
+                properties.emailBackoff(), Clock.systemUTC());
+    }
+
+    @Bean
+    @ConditionalOnBean(DeliverFinancialEmail.class)
+    SimpleMessageListenerContainer financialConsumer(WorkerProperties properties,
+            CachingConnectionFactory workerRabbitConnections, DeliverFinancialEmail deliverFinancialEmail) {
+        WorkerProperties.Rabbit rabbit = properties.rabbitmq();
+        SimpleMessageListenerContainer container = new RabbitFinancialConsumer(workerRabbitConnections,
+                new RabbitFinancialConsumer.Topology(properties.billing().exchange(), rabbit.queuePrefix()),
+                new FinancialEventReader(), deliverFinancialEmail::handle, rabbit.attempts(), rabbit.backoff(),
+                WorkerConfiguration::sleep).container();
+        container.setAutoStartup(properties.consumer().autoStartup());
+        return container;
     }
 
     @Bean(destroyMethod = "destroy")

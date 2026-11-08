@@ -19,14 +19,14 @@ Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-do
 | Scope | State |
 |---|---|
 | Informational appointment reminders (HU-APT-002, issue #1) | Implemented; reproducible end-to-end test against Appointments `qa` (`e2e/run.sh`) |
-| Patients `GET /internal/v1/patients/{id}/billing-contact` | **Not exposed by Patients yet.** The client follows the contract and is tested against a double; set `PATIENTS_INTERNAL_URL` when Patients delivers it |
-| Billing invoice and payment email (issues #2 and #3) | Not started |
+| Patients `GET /internal/v1/patients/{id}/billing-contact` | Exposed by Patients (dlc-patient-api#50); the client is also tested against a double of the contract |
+| Invoice and payment emails (HU-BIL-002/003, issues #2 and #3) | Implemented: `InvoiceIssued` and `PaymentRecorded` from `billing.events`, Billing's event-time summary and PDF attached |
 | Service credential issuer | Platform gap: no component issues service JWTs yet. The worker reads tokens provisioned as files |
 
 ## Technology stack
 
 - Java 21, Spring Boot 3.5, Maven
-- RabbitMQ 3.13 (consumer of `appointments.events`)
+- RabbitMQ 3.13 (consumer of `appointments.events` and `billing.events`)
 - PostgreSQL 16+ (schema `notifications`, role `notifications_runtime`)
 - SMTP email provider (Jakarta Mail); Mailpit for local stages
 - Docker
@@ -35,8 +35,8 @@ Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-do
 
 Hexagonal, in three Maven modules:
 
-- `worker-core`: `DeliverReminder`, the reminder template and the ports, with no Spring or infrastructure dependency (enforced).
-- `worker-adapters`: RabbitMQ consumer, strict event reader, Appointments and Patients clients, SMTP sender, JDBC store.
+- `worker-core`: `DeliverReminder`, `DeliverFinancialEmail`, their templates and the ports, with no Spring or infrastructure dependency (enforced).
+- `worker-adapters`: RabbitMQ consumers, strict event readers, Appointments, Patients and Billing clients, SMTP sender, JDBC stores.
 - `worker-app`: composition root and configuration. No HTTP surface.
 
 `db/` holds the Liquibase changelog of the `notifications` schema and its migration job. The worker runtime never migrates.
@@ -53,6 +53,15 @@ Hexagonal, in three Maven modules:
 
 The email is plain text in Spanish, with date and time in `America/Bogota`, and has no links, tokens, actions or clinical content. No scheduling, rescheduling, cancellation or no-show email exists. Logs are JSON with `correlationId`, `eventId` and `deliveryId`, never an address or a message body.
 
+## Invoice and payment emails (ADR-005, HU-BIL-002/003)
+
+1. Billing publishes `InvoiceIssued` and each successful `PaymentRecorded` after it commits. The worker declares its own queue `worker.billing-financial-emails`, bound by both names to `billing.events`, with the DLQ `worker.billing-financial-emails.dlq` through `worker.consumers.dlx`. `InvoicePaid` is not consumed: the final payment already arrives as `PaymentRecorded`.
+2. A message outside the v1 schemas goes to the DLQ. A repeated `eventId` is acknowledged without effect; the `eventId` is the delivery key, so each fact sends at most one email.
+3. `GET .../invoices/{id}/notification-summary?sourceEventId=` and `.../pdf?sourceEventId=` return Billing's representation as of that event. A 404 from Billing, or from Patients for the contact, discards the delivery without email.
+4. At most 3 email attempts with exponential backoff, as for reminders. The result (`SENT` with the `Message-ID`, or `DELIVERY_FAILED` with its code) is saved in `notifications.financial_deliveries` and the event is marked `RECORDED`. Billing receives no report: a failed email never undoes issuance or payment.
+
+The email is plain text in Spanish with the PDF attached: invoice number and date, the invoice labels, total, paid amount, balance and status, and for a payment the new amount. It has no links and no clinical narrative, and the worker never calculates money. The summary and the PDF stay in memory for one delivery.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and fill it in. Never commit `.env`, tokens, passwords or keys.
@@ -65,6 +74,8 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`, tokens, passw
 | `WORKER_CONSUMER_ATTEMPTS`, `WORKER_CONSUMER_BACKOFF` | Retries of a message on owner or store outages (`5`, `PT1S`) |
 | `APPOINTMENTS_INTERNAL_URL`, `APPOINTMENTS_SERVICE_TOKEN_FILE` | Appointments private contract; token with `appointments:notification-details:read appointments:notification-outcome:write` |
 | `PATIENTS_INTERNAL_URL`, `PATIENTS_SERVICE_TOKEN_FILE` | Patients private contract; token with `patients:billing-contact:read` |
+| `BILLING_INTERNAL_URL`, `BILLING_SERVICE_TOKEN_FILE` | Billing private contracts; token with `billing:notification-summary:read billing:invoice-pdf:read` |
+| `WORKER_BILLING_ENABLED`, `BILLING_EVENTS_EXCHANGE` | `false` runs reminders only (`true`); consumed Billing exchange (`billing.events`) |
 | `WORKER_OWNER_TIMEOUT` | Owner call timeout (`PT3S`) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_STARTTLS`, `SMTP_FROM`, `SMTP_USERNAME`, `SMTP_PASSWORD_FILE`, `SMTP_TIMEOUT` | Email provider; credentials optional |
 | `WORKER_EMAIL_BACKOFF` | First delay between email attempts (`PT2S`) |
