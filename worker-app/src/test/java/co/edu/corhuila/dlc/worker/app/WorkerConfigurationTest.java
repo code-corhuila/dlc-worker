@@ -2,10 +2,12 @@ package co.edu.corhuila.dlc.worker.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.edu.corhuila.dlc.worker.application.usecase.DeliverFinancialEmail;
 import co.edu.corhuila.dlc.worker.application.usecase.DeliverReminder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
@@ -21,6 +23,7 @@ class WorkerConfigurationTest {
     private ApplicationContextRunner runner() throws IOException {
         Path appointments = Files.writeString(secrets.resolve("worker-to-appointments"), "token-a");
         Path patients = Files.writeString(secrets.resolve("worker-to-patients"), "token-p");
+        Path billing = Files.writeString(secrets.resolve("worker-to-billing"), "token-b");
         return new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(ConfigurationPropertiesAutoConfiguration.class))
                 .withUserConfiguration(WorkerConfiguration.class)
@@ -34,6 +37,8 @@ class WorkerConfigurationTest {
                         "worker.appointments.service-token-file=" + appointments,
                         "worker.patients.internal-url=http://dlc-patient-api:8080",
                         "worker.patients.service-token-file=" + patients,
+                        "worker.billing.internal-url=http://dlc-billing-api:8081",
+                        "worker.billing.service-token-file=" + billing,
                         "worker.smtp.host=mailpit",
                         "worker.smtp.port=1025",
                         "worker.smtp.start-tls=false",
@@ -41,14 +46,28 @@ class WorkerConfigurationTest {
     }
 
     @Test
-    void composesTheDeliveryPipelineWithoutConnecting() throws IOException {
+    void composesTheDeliveryPipelinesWithoutConnecting() throws IOException {
         runner().run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).hasSingleBean(DeliverReminder.class);
-            assertThat(context.getBean(SimpleMessageListenerContainer.class).isRunning()).isFalse();
-            assertThat(context.getBean(SimpleMessageListenerContainer.class).getQueueNames())
-                    .containsExactly("worker.appointment-reminder-requested");
+            assertThat(context).hasSingleBean(DeliverFinancialEmail.class);
+            var containers = context.getBeansOfType(SimpleMessageListenerContainer.class).values();
+            assertThat(containers).noneMatch(SimpleMessageListenerContainer::isRunning);
+            assertThat(containers).flatExtracting(container -> List.of(container.getQueueNames()))
+                    .containsExactlyInAnyOrder("worker.appointment-reminder-requested",
+                            "worker.billing-financial-emails");
         });
+    }
+
+    @Test
+    void financialEmailsCanBeDisabledAndOtherwiseNeedBilling() throws IOException {
+        runner().withPropertyValues("worker.billing.enabled=false", "worker.billing.internal-url=").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context).doesNotHaveBean(DeliverFinancialEmail.class);
+            assertThat(context).hasSingleBean(SimpleMessageListenerContainer.class);
+        });
+        runner().withPropertyValues("worker.billing.internal-url=").run(context -> assertThat(context).hasFailed()
+                .getFailure().rootCause().hasMessageContaining("worker.billing.internal-url"));
     }
 
     @Test
