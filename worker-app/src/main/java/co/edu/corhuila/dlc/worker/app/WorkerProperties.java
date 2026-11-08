@@ -13,6 +13,7 @@ public record WorkerProperties(
         @DefaultValue Rabbit rabbitmq,
         @DefaultValue Owner appointments,
         @DefaultValue Owner patients,
+        @DefaultValue Billing billing,
         @DefaultValue("PT3S") Duration ownerTimeout,
         @DefaultValue Smtp smtp,
         @DefaultValue("PT2S") Duration emailBackoff) {
@@ -36,6 +37,9 @@ public record WorkerProperties(
     }
 
     public record Owner(String internalUrl, String serviceTokenFile) { }
+    /** Invoice and payment emails (HU-BIL-002/003): Billing facts from {@code exchange}, its private contracts. */
+    public record Billing(@DefaultValue("true") boolean enabled, String internalUrl, String serviceTokenFile,
+            @DefaultValue("billing.events") String exchange) { }
 
     public record Smtp(String host, @DefaultValue("587") int port, String username, String passwordFile,
             @DefaultValue("true") boolean startTls, String from, @DefaultValue("PT10S") Duration timeout) { }
