@@ -20,7 +20,7 @@ public final class HttpAppointmentNotifications implements AppointmentNotificati
     private static final String BASE = "/internal/v1/appointment-notifications/";
     private final OwnerClient client;
 
-    public HttpAppointmentNotifications(String baseUrl, FileServiceToken token, Duration timeout) {
+    public HttpAppointmentNotifications(String baseUrl, ServiceToken token, Duration timeout) {
         this.client = new OwnerClient("APPOINTMENTS", baseUrl, token, timeout);
     }
 
