@@ -12,6 +12,8 @@ import co.edu.corhuila.dlc.worker.adapter.in.messaging.RabbitReminderConsumer;
 import co.edu.corhuila.dlc.worker.adapter.in.messaging.ReminderEventReader;
 import co.edu.corhuila.dlc.worker.adapter.out.email.SmtpEmailSender;
 import co.edu.corhuila.dlc.worker.adapter.out.http.FileServiceToken;
+import co.edu.corhuila.dlc.worker.adapter.out.http.IamServiceToken;
+import co.edu.corhuila.dlc.worker.adapter.out.http.ServiceToken;
 import co.edu.corhuila.dlc.worker.adapter.out.http.HttpAppointmentNotifications;
 import co.edu.corhuila.dlc.worker.adapter.out.http.HttpPatientContacts;
 import co.edu.corhuila.dlc.worker.adapter.out.persistence.JdbcDeliveryStore;
@@ -59,11 +61,13 @@ public class WorkerConfiguration {
         Duration timeout = properties.ownerTimeout();
         var appointments = new HttpAppointmentNotifications(
                 required(properties.appointments().internalUrl(), "worker.appointments.internal-url"),
-                token(properties.appointments().serviceTokenFile(), "worker.appointments.service-token-file"),
+                token(properties, properties.appointments().serviceTokenFile(), "worker.appointments.service-token-file",
+                        "appointments-api", APPOINTMENTS_SCOPE),
                 timeout);
         var patients = new HttpPatientContacts(
                 required(properties.patients().internalUrl(), "worker.patients.internal-url"),
-                token(properties.patients().serviceTokenFile(), "worker.patients.service-token-file"), timeout);
+                token(properties, properties.patients().serviceTokenFile(), "worker.patients.service-token-file",
+                        "patients-api", PATIENTS_SCOPE), timeout);
         return new DeliverReminder(appointments, patients, new SmtpEmailSender(smtp(properties.smtp())),
                 new JdbcDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
                 properties.emailBackoff(), Clock.systemUTC());
@@ -75,10 +79,12 @@ public class WorkerConfiguration {
         Duration timeout = properties.ownerTimeout();
         var billing = new HttpBillingDeliveries(
                 required(properties.billing().internalUrl(), "worker.billing.internal-url"),
-                token(properties.billing().serviceTokenFile(), "worker.billing.service-token-file"), timeout);
+                token(properties, properties.billing().serviceTokenFile(), "worker.billing.service-token-file",
+                        "billing-api", BILLING_SCOPE), timeout);
         var patients = new HttpPatientContacts(
                 required(properties.patients().internalUrl(), "worker.patients.internal-url"),
-                token(properties.patients().serviceTokenFile(), "worker.patients.service-token-file"), timeout);
+                token(properties, properties.patients().serviceTokenFile(), "worker.patients.service-token-file",
+                        "patients-api", PATIENTS_SCOPE), timeout);
         return new DeliverFinancialEmail(billing, patients, new SmtpEmailSender(smtp(properties.smtp())),
                 new JdbcFinancialDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
                 properties.emailBackoff(), Clock.systemUTC());
@@ -114,8 +120,19 @@ public class WorkerConfiguration {
         return container;
     }
 
-    private static FileServiceToken token(String file, String name) {
-        return new FileServiceToken(Path.of(required(file, name)));
+    // Scopes the worker uses per owner (internal-coordination.yaml x-service-scope).
+    private static final String APPOINTMENTS_SCOPE =
+            "appointments:notification-details:read appointments:notification-outcome:write";
+    private static final String PATIENTS_SCOPE = "patients:billing-contact:read";
+    private static final String BILLING_SCOPE = "billing:notification-summary:read billing:invoice-pdf:read";
+
+    private static ServiceToken token(WorkerProperties properties, String file, String name, String audience,
+            String scope) {
+        WorkerProperties.Iam iam = properties.iam();
+        if (!iam.issuesTokens()) return new FileServiceToken(Path.of(required(file, name)));
+        return new IamServiceToken(iam.internalUrl(), required(iam.clientId(), "worker.iam.client-id"),
+                Path.of(required(iam.clientSecretFile(), "worker.iam.client-secret-file")), audience, scope,
+                properties.ownerTimeout(), Clock.systemUTC());
     }
 
     private static SmtpEmailSender.Settings smtp(WorkerProperties.Smtp smtp) {

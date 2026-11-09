@@ -11,13 +11,14 @@ import java.util.Objects;
  * /run/secrets and renewed by a credential provider). Reread on every call, so an atomic replacement rotates it.
  * The worker holds no signing key.
  */
-public final class FileServiceToken {
+public final class FileServiceToken implements ServiceToken {
     private final Path file;
 
     public FileServiceToken(Path file) {
         this.file = Objects.requireNonNull(file, "file");
     }
 
+    @Override
     public String current() {
         try {
             String token = Files.readString(file).strip();
