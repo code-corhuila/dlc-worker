@@ -16,7 +16,8 @@ public record WorkerProperties(
         @DefaultValue Billing billing,
         @DefaultValue("PT3S") Duration ownerTimeout,
         @DefaultValue Smtp smtp,
-        @DefaultValue("PT2S") Duration emailBackoff) {
+        @DefaultValue("PT2S") Duration emailBackoff,
+        @DefaultValue Iam iam) {
 
     public record Consumer(@DefaultValue("true") boolean autoStartup) { }
 
@@ -37,6 +38,12 @@ public record WorkerProperties(
     }
 
     public record Owner(String internalUrl, String serviceTokenFile) { }
+    /** ADR-020: when set, service tokens are issued by IAM for this client instead of read from files. */
+    public record Iam(String internalUrl, String clientId, String clientSecretFile) {
+        boolean issuesTokens() {
+            return internalUrl != null && !internalUrl.isBlank();
+        }
+    }
     /** Invoice and payment emails (HU-BIL-002/003): Billing facts from {@code exchange}, its private contracts. */
     public record Billing(@DefaultValue("true") boolean enabled, String internalUrl, String serviceTokenFile,
             @DefaultValue("billing.events") String exchange) { }
