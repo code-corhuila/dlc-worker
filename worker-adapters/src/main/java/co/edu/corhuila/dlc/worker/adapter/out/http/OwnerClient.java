@@ -27,11 +27,11 @@ final class OwnerClient {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
     private final HttpClient http;
     private final String baseUrl;
-    private final FileServiceToken token;
+    private final ServiceToken token;
     private final Duration timeout;
     private final String owner;
 
-    OwnerClient(String owner, String baseUrl, FileServiceToken token, Duration timeout) {
+    OwnerClient(String owner, String baseUrl, ServiceToken token, Duration timeout) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.baseUrl = Objects.requireNonNull(baseUrl, "baseUrl").replaceAll("/+$", "");
         this.token = Objects.requireNonNull(token, "token");
@@ -73,6 +73,7 @@ final class OwnerClient {
             Thread.currentThread().interrupt();
             throw unavailable("UNAVAILABLE");
         }
+        if (response.statusCode() == 401) token.invalidate();
         if (response.statusCode() == 401 || response.statusCode() == 403) {
             throw unavailable("REJECTED_CREDENTIALS");
         }

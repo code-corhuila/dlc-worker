@@ -18,7 +18,7 @@ import java.util.UUID;
 public final class HttpBillingDeliveries implements BillingDeliveries {
     private final OwnerClient client;
 
-    public HttpBillingDeliveries(String baseUrl, FileServiceToken token, Duration timeout) {
+    public HttpBillingDeliveries(String baseUrl, ServiceToken token, Duration timeout) {
         this.client = new OwnerClient("BILLING", baseUrl, token, timeout);
     }
 

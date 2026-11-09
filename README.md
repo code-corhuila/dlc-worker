@@ -82,6 +82,8 @@ Copy `.env.example` to `.env` and fill it in. Never commit `.env`, tokens, passw
 | `WORKER_ENABLED` | `false` starts the process without the pipeline |
 | `WORKER_SECRETS_DIR`, `PLATFORM_NETWORK` | Docker Compose only: host folder mounted read-only at `/run/secrets`, and the external network |
 
+**IAM-issued service tokens (ADR-020).** Set `IAM_INTERNAL_URL` (for example `http://auth-service:8080`), `SERVICE_CLIENT_ID` (default `dlc-worker`) and `SERVICE_CLIENT_SECRET_FILE`. The worker then requests one token per owner from `POST /internal/v1/service-tokens`, reuses it until two thirds of its lifetime and renews it after an owner answers `401`. With these unset, the `*_SERVICE_TOKEN_FILE` files are used as before.
+
 Service tokens are short-lived RS256 JWTs with `sub` `dlc-worker`, the owner's audience and space-separated scopes, one per line in a file. The worker rereads the file on every call, so replacing it atomically rotates the token. It holds no signing key and never uses a staff token.
 
 ## Database migration

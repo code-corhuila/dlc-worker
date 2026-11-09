@@ -32,6 +32,11 @@ worker:
     internal-url: ${BILLING_INTERNAL_URL:}
     service-token-file: ${BILLING_SERVICE_TOKEN_FILE:}
     exchange: ${BILLING_EVENTS_EXCHANGE:billing.events}
+  # ADR-020: with IAM_INTERNAL_URL set, service tokens are issued by IAM for this client; otherwise the files above.
+  iam:
+    internal-url: ${IAM_INTERNAL_URL:}
+    client-id: ${SERVICE_CLIENT_ID:dlc-worker}
+    client-secret-file: ${SERVICE_CLIENT_SECRET_FILE:}
   owner-timeout: ${WORKER_OWNER_TIMEOUT:PT3S}
   smtp:
     host: ${SMTP_HOST:}

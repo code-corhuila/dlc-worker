@@ -16,7 +16,7 @@ import java.util.UUID;
 public final class HttpPatientContacts implements PatientContacts {
     private final OwnerClient client;
 
-    public HttpPatientContacts(String baseUrl, FileServiceToken token, Duration timeout) {
+    public HttpPatientContacts(String baseUrl, ServiceToken token, Duration timeout) {
         this.client = new OwnerClient("PATIENTS", baseUrl, token, timeout);
     }
 
