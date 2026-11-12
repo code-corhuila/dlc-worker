@@ -9,7 +9,7 @@ Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-do
 | Topic | Location in dlc-docs |
 |---|---|
 | Decision | `05-architecture/decisions/ADR-005-hybrid-integration-and-notifications.md` |
-| Consumed event | `07-api/contracts/events/` (`AppointmentReminderRequested`) |
+| Consumed event | `07-api/contracts/events/` (`AppointmentScheduled`, `AppointmentReminderRequested`) |
 | Private owner contracts (`/internal/v1`) | `07-api/contracts/openapi/internal-coordination.yaml` |
 | Repository boundary | `09-microservices/transversal-repositories.md` |
 | Store (`notifications` schema) | `06-data/models.md` |
@@ -19,6 +19,7 @@ Governance, requirements, contracts and decisions live in [`code-corhuila/dlc-do
 | Scope | State |
 |---|---|
 | Informational appointment reminders (HU-APT-002, issue #1) | Implemented; reproducible end-to-end test against Appointments `qa` (`e2e/run.sh`) |
+| Immediate appointment scheduling notice | Consumes `AppointmentScheduled` and records results independently of reminders |
 | Patients `GET /internal/v1/patients/{id}/billing-contact` | Exposed by Patients (dlc-patient-api#50); the client is also tested against a double of the contract |
 | Invoice and payment emails (HU-BIL-002/003, issues #2 and #3) | Implemented: `InvoiceIssued` and `PaymentRecorded` from `billing.events`, Billing's event-time summary and PDF attached |
 | Service credential issuer | Platform gap: no component issues service JWTs yet. The worker reads tokens provisioned as files |
@@ -51,7 +52,18 @@ Hexagonal, in three Maven modules:
 6. `POST .../outcomes` reports `SENT` with the provider `Message-ID` or `DELIVERY_FAILED` with its code and attempts. A 409 (`STALE_VERSION`, `IDEMPOTENCY_CONFLICT`) is final and never retried. A failure never changes anything in the owner.
 7. The message is acknowledged only after the result is recorded. Owner or store outages are retried in place (`WORKER_CONSUMER_ATTEMPTS`, `WORKER_CONSUMER_BACKOFF`) and then dead-lettered.
 
-The email is plain text in Spanish, with date and time in `America/Bogota`, and has no links, tokens, actions or clinical content. No scheduling, rescheduling, cancellation or no-show email exists. Logs are JSON with `correlationId`, `eventId` and `deliveryId`, never an address or a message body.
+The email is plain text in Spanish, with date and time in `America/Bogota`, and has no links, tokens, actions or clinical content. No rescheduling, cancellation or no-show email exists. Logs are JSON with `correlationId`, `eventId` and `deliveryId`, never an address or a message body.
+
+## Appointment scheduling notice
+
+After an appointment is committed, Appointments publishes `AppointmentScheduled`.
+The worker consumes it on `worker.appointment-scheduled`, validates the current
+appointment and patient contact, and sends an informational scheduling email.
+The worker records the result in `notifications.scheduled_deliveries`, separate
+from the 24-hour reminder, and does not mark the appointment as confirmed.
+Repeated events are checked against the worker inbox and delivery record. If the
+appointment is cancelled or its start time changes before processing, the notice
+is discarded. SMTP acceptance does not guarantee delivery to the inbox.
 
 ## Invoice and payment emails (ADR-005, HU-BIL-002/003)
 

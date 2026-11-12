@@ -10,6 +10,10 @@ import static co.edu.corhuila.dlc.worker.app.WorkerProperties.required;
 
 import co.edu.corhuila.dlc.worker.adapter.in.messaging.RabbitReminderConsumer;
 import co.edu.corhuila.dlc.worker.adapter.in.messaging.ReminderEventReader;
+import co.edu.corhuila.dlc.worker.adapter.in.messaging.RabbitScheduledConsumer;
+import co.edu.corhuila.dlc.worker.adapter.in.messaging.ScheduledEventReader;
+import co.edu.corhuila.dlc.worker.adapter.out.persistence.JdbcScheduledDeliveryStore;
+import co.edu.corhuila.dlc.worker.application.usecase.DeliverScheduledEmail;
 import co.edu.corhuila.dlc.worker.adapter.out.email.SmtpEmailSender;
 import co.edu.corhuila.dlc.worker.adapter.out.http.FileServiceToken;
 import co.edu.corhuila.dlc.worker.adapter.out.http.IamServiceToken;
@@ -71,6 +75,34 @@ public class WorkerConfiguration {
         return new DeliverReminder(appointments, patients, new SmtpEmailSender(smtp(properties.smtp())),
                 new JdbcDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
                 properties.emailBackoff(), Clock.systemUTC());
+    }
+
+    @Bean
+    DeliverScheduledEmail deliverScheduledEmail(WorkerProperties properties, HikariDataSource workerDataSource) {
+        Duration timeout = properties.ownerTimeout();
+        var appointments = new HttpAppointmentNotifications(
+                required(properties.appointments().internalUrl(), "worker.appointments.internal-url"),
+                token(properties, properties.appointments().serviceTokenFile(), "worker.appointments.service-token-file",
+                        "appointments-api", APPOINTMENTS_SCOPE), timeout);
+        var patients = new HttpPatientContacts(
+                required(properties.patients().internalUrl(), "worker.patients.internal-url"),
+                token(properties, properties.patients().serviceTokenFile(), "worker.patients.service-token-file",
+                        "patients-api", PATIENTS_SCOPE), timeout);
+        return new DeliverScheduledEmail(appointments, patients, new SmtpEmailSender(smtp(properties.smtp())),
+                new JdbcScheduledDeliveryStore(new JdbcTemplate(workerDataSource)), WorkerConfiguration::sleep,
+                properties.emailBackoff(), Clock.systemUTC());
+    }
+
+    @Bean
+    SimpleMessageListenerContainer scheduledConsumer(WorkerProperties properties,
+            CachingConnectionFactory workerRabbitConnections, DeliverScheduledEmail delivery) {
+        WorkerProperties.Rabbit rabbit = properties.rabbitmq();
+        var container = new RabbitScheduledConsumer(workerRabbitConnections,
+                new RabbitScheduledConsumer.Topology(rabbit.exchange(), rabbit.queuePrefix()),
+                new ScheduledEventReader(), delivery::handle, rabbit.attempts(), rabbit.backoff(),
+                WorkerConfiguration::sleep).container();
+        container.setAutoStartup(properties.consumer().autoStartup());
+        return container;
     }
 
     @Bean

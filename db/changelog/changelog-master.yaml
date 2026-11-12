@@ -53,3 +53,12 @@ databaseChangeLog:
         - sqlFile: {path: sql/005_create_financial_deliveries.sql, relativeToChangelogFile: true, splitStatements: false}
       rollback:
         - sqlFile: {path: rollback/005_create_financial_deliveries.rollback.sql, relativeToChangelogFile: true}
+  - changeSet:
+      id: notifications-006-create-scheduled-deliveries
+      author: DanielPerez1822
+      labels: "appointments,ddl,dcl,tables"
+      runInTransaction: true
+      changes:
+        - sqlFile: {path: sql/006_create_scheduled_deliveries.sql, relativeToChangelogFile: true, splitStatements: false}
+      rollback:
+        - sql: {sql: "DROP TABLE notifications.scheduled_deliveries"}
