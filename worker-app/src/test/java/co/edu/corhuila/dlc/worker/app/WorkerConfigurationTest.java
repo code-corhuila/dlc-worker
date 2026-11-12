@@ -55,6 +55,7 @@ class WorkerConfigurationTest {
             assertThat(containers).noneMatch(SimpleMessageListenerContainer::isRunning);
             assertThat(containers).flatExtracting(container -> List.of(container.getQueueNames()))
                     .containsExactlyInAnyOrder("worker.appointment-reminder-requested",
+                            "worker.appointment-scheduled",
                             "worker.billing-financial-emails");
         });
     }
@@ -64,7 +65,7 @@ class WorkerConfigurationTest {
         runner().withPropertyValues("worker.billing.enabled=false", "worker.billing.internal-url=").run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context).doesNotHaveBean(DeliverFinancialEmail.class);
-            assertThat(context).hasSingleBean(SimpleMessageListenerContainer.class);
+            assertThat(context.getBeansOfType(SimpleMessageListenerContainer.class)).hasSize(2);
         });
         runner().withPropertyValues("worker.billing.internal-url=").run(context -> assertThat(context).hasFailed()
                 .getFailure().rootCause().hasMessageContaining("worker.billing.internal-url"));
