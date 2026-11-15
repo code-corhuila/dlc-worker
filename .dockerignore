@@ -1,0 +1,9 @@
+target/
+**/target/
+.git/
+.env
+.env.*
+db/
+deploy/
+*.md
+e2e/

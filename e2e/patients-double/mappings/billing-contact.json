@@ -1,0 +1,29 @@
+{
+  "mappings": [
+    {
+      "priority": 1,
+      "request": {
+        "method": "GET",
+        "urlPathPattern": "/internal/v1/patients/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/billing-contact",
+        "headers": {
+          "Authorization": { "matches": "Bearer [A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+" }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"patientId\":\"{{request.pathSegments.[3]}}\",\"email\":\"paciente-{{request.pathSegments.[3]}}@example.test\",\"displayName\":\"Paciente E2E\"}",
+        "transformers": ["response-template"]
+      }
+    },
+    {
+      "priority": 2,
+      "request": { "method": "ANY", "urlPathPattern": "/internal/v1/.*" },
+      "response": {
+        "status": 401,
+        "headers": { "Content-Type": "application/json" },
+        "body": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Service credentials are required.\"}"
+      }
+    }
+  ]
+}

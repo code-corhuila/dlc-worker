@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: dlc-worker
+  main:
+    web-application-type: none
+  lifecycle:
+    # Norma 5.3.10: graceful shutdown limit.
+    timeout-per-shutdown-phase: 20s
+
+worker:
+  enabled: ${WORKER_ENABLED:true}
+  database:
+    # Own schema notifications only, as notifications_runtime; the worker never runs migrations.
+    url: ${DB_URL:}
+    username: ${DB_USERNAME:}
+    password: ${DB_PASSWORD:}
+  rabbitmq:
+    uri: ${WORKER_RABBITMQ_URI:}
+    exchange: ${APPOINTMENTS_EVENTS_EXCHANGE:appointments.events}
+    queue-prefix: ${WORKER_QUEUE_PREFIX:worker}
+    attempts: ${WORKER_CONSUMER_ATTEMPTS:5}
+    backoff: ${WORKER_CONSUMER_BACKOFF:PT1S}
+  appointments:
+    internal-url: ${APPOINTMENTS_INTERNAL_URL:}
+    service-token-file: ${APPOINTMENTS_SERVICE_TOKEN_FILE:}
+  patients:
+    internal-url: ${PATIENTS_INTERNAL_URL:}
+    service-token-file: ${PATIENTS_SERVICE_TOKEN_FILE:}
+  billing:
+    # HU-BIL-002/003 invoice and payment emails; false runs the reminder pipeline only.
+    enabled: ${WORKER_BILLING_ENABLED:true}
+    internal-url: ${BILLING_INTERNAL_URL:}
+    service-token-file: ${BILLING_SERVICE_TOKEN_FILE:}
+    exchange: ${BILLING_EVENTS_EXCHANGE:billing.events}
+  # ADR-020: with IAM_INTERNAL_URL set, service tokens are issued by IAM for this client; otherwise the files above.
+  iam:
+    internal-url: ${IAM_INTERNAL_URL:}
+    client-id: ${SERVICE_CLIENT_ID:dlc-worker}
+    client-secret-file: ${SERVICE_CLIENT_SECRET_FILE:}
+  owner-timeout: ${WORKER_OWNER_TIMEOUT:PT3S}
+  smtp:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password-file: ${SMTP_PASSWORD_FILE:}
+    start-tls: ${SMTP_STARTTLS:true}
+    from: ${SMTP_FROM:}
+    timeout: ${SMTP_TIMEOUT:PT10S}
+  # ADR-005: at most three email attempts; the delay doubles after each failure.
+  email-backoff: ${WORKER_EMAIL_BACKOFF:PT2S}
+
+logging:
+  structured:
+    format:
+      console: logstash
